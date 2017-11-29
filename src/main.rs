@@ -3,8 +3,8 @@ use std::f64::INFINITY;
 use std::fs::File;
 use std::io::Write;
 use std::ops::Deref;
-
-const DELTA: f64 = 0.0000001;
+use std::io::BufWriter;
+use std::f64::EPSILON;
 
 #[derive(Debug, Copy, Clone)]
 struct Vector3d {
@@ -15,7 +15,7 @@ struct Vector3d {
 
 impl Vector3d {
     pub fn new(x: f64, y: f64, z: f64) -> Self {
-        Vector3d {x, y, z}
+        Vector3d { x, y, z }
     }
 
     pub fn add(&self, other: &Vector3d) -> Vector3d {
@@ -47,11 +47,11 @@ impl Vector3d {
     }
 
     pub fn unitise(&self) -> Vector3d {
-        self.scale( 1.0 / self.dot(self).sqrt())
+        self.scale(1.0 / self.dot(self).sqrt())
     }
 }
 
-const ZERO: Vector3d = Vector3d{ x: 0.0, y: 0.0, z: 0.0 };
+const ZERO: Vector3d = Vector3d { x: 0.0, y: 0.0, z: 0.0 };
 
 #[derive(Debug, Copy, Clone)]
 struct Ray {
@@ -61,7 +61,7 @@ struct Ray {
 
 impl Ray {
     pub fn new(orig: Vector3d, dir: Vector3d) -> Self {
-        Ray {orig, dir}
+        Ray { orig, dir }
     }
 }
 
@@ -111,7 +111,7 @@ impl Sphere {
                     t2
                 }
             }
-        }
+        };
     }
 }
 
@@ -123,7 +123,7 @@ impl Scene for Sphere {
         } else {
             let n: Vector3d = ray.orig.add(&ray.dir.scale(l).sub(&self.center));
             Hit::new(l, n.unitise())
-        }
+        };
     }
 }
 
@@ -149,7 +149,7 @@ impl Scene for Group {
                 out = scene.intersect(&out, ray);
             }
             out
-        }
+        };
     }
 }
 
@@ -160,11 +160,11 @@ fn ray_trace(light: Vector3d, ray: Ray, scene: &Scene) -> f64 {
     }
     let g: f64 = i.normal.dot(&light);
     if g >= 0.0 {
-        return 0.0
+        return 0.0;
     }
     let o: Vector3d = ray.orig.add(
         &ray.dir.scale(i.lambda).add(
-            &i.normal.scale(DELTA)
+            &i.normal.scale(EPSILON)
         )
     );
     let sray: Ray = Ray::new(o, light.scale(-1.0));
@@ -173,13 +173,13 @@ fn ray_trace(light: Vector3d, ray: Ray, scene: &Scene) -> f64 {
         -g
     } else {
         0.0
-    }
+    };
 }
 
 fn create(level: i32, c: Vector3d, r: f64) -> Box<Scene> {
     let sphere: Sphere = Sphere::new(c, r);
     if level == 1 {
-        return Box::new(sphere)
+        return Box::new(sphere);
     }
     let mut objects: Vec<Box<Scene>> = Vec::new();
     objects.push(Box::new(sphere));
@@ -188,42 +188,41 @@ fn create(level: i32, c: Vector3d, r: f64) -> Box<Scene> {
     while dz <= 1 {
         let mut dx: i32 = -1;
         while dx <= 1 {
-            let c2: Vector3d = Vector3d::new(
-                c.x + dx as f64 * rn,
-                c.y + rn,
-                c.z + dz as f64 * rn
-            );
+            let c2: Vector3d = c.add(&Vector3d::new(dx as f64, 1.0, dz as f64).scale(rn));
             objects.push(create(level - 1, c2, r / 2.0));
-            dx +=2;
+            dx += 2;
         }
         dz += 2;
     }
-    return Box::new(Group::new(Sphere::new(c, r * 3.0), objects))
+    return Box::new(Group::new(Sphere::new(c, r * 3.0), objects));
 }
 
 fn run(n: i32, level: i32, ss: i32) {
     let sss: f64 = ss as f64 * ss as f64;
+    let light = Vector3d::new(-1.0, -3.0, 2.0).unitise();
+    let orig = Vector3d::new(0.0, 0.0, -4.0);
     let scene: Box<Scene> = create(level, Vector3d::new(0.0, -1.0, 0.0), 1.0);
-    let mut file: File = File::create("image.pgm")
-        .expect("Failed to create image.pgm");
+    let mut file = BufWriter::new(File::create("image.pgm")
+        .expect("Failed to create image.pgm"));
+
     file.write_all(format!("P5\n{} {}\n255\n", n, n).as_bytes())
         .expect("Failed writing header to image.pgm");
-    for y in (0 .. n).rev() {
-        for x in 0 .. n {
+    for y in (0..n).rev() {
+        for x in 0..n {
             let mut g: f64 = 0.0;
-            for dx in 0 .. ss {
-                for dy in 0 .. ss {
+            for dx in 0..ss {
+                for dy in 0..ss {
                     let d: Vector3d = Vector3d::new(
                         x as f64 + dx as f64 / ss as f64 - n as f64 / 2.0,
                         y as f64 + dy as f64 / ss as f64 - n as f64 / 2.0,
                         n as f64
                     );
                     let ray: Ray = Ray::new(
-                        Vector3d::new(0.0, 0.0, -4.0),
+                        orig,
                         d.unitise()
                     );
                     g += ray_trace(
-                        Vector3d::new(-1.0, -3.0, 2.0).unitise(),
+                        light,
                         ray,
                         scene.deref());
                 }
