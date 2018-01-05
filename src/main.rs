@@ -20,25 +20,19 @@ impl Vector3d {
 
     pub fn add(&self, other: &Vector3d) -> Vector3d {
         Vector3d::new(
-            self.x + other.x,
-            self.y + other.y,
-            self.z + other.z
+            self.x + other.x, self.y + other.y, self.z + other.z
         )
     }
 
     pub fn sub(&self, other: &Vector3d) -> Vector3d {
         Vector3d::new(
-            self.x - other.x,
-            self.y - other.y,
-            self.z - other.z
+            self.x - other.x, self.y - other.y, self.z - other.z
         )
     }
 
     pub fn scale(&self, s: f64) -> Vector3d {
         Vector3d::new(
-            self.x * s,
-            self.y * s,
-            self.z * s
+            self.x * s, self.y * s, self.z * s
         )
     }
 
@@ -164,7 +158,7 @@ fn ray_trace(light: Vector3d, ray: Ray, scene: &Scene) -> f64 {
     }
     let o: Vector3d = ray.orig.add(
         &ray.dir.scale(i.lambda).add(
-            &i.normal.scale(EPSILON)
+            &i.normal.scale(EPSILON.sqrt())
         )
     );
     let sray: Ray = Ray::new(o, light.scale(-1.0));
