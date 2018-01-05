@@ -6,11 +6,13 @@ use std::ops::Deref;
 use std::io::BufWriter;
 use std::f64::EPSILON;
 
+use std::ops::*;
+
 #[derive(Debug, Copy, Clone)]
-struct Vector3d {
-    x: f64,
-    y: f64,
-    z: f64,
+pub struct Vector3d {
+    pub x: f64,
+    pub y: f64,
+    pub z: f64,
 }
 
 impl Vector3d {
@@ -18,30 +20,46 @@ impl Vector3d {
         Vector3d { x, y, z }
     }
 
-    pub fn add(&self, other: &Vector3d) -> Vector3d {
+    pub fn unitise(self) -> Vector3d {
+        self * (1.0 / (self * self).sqrt())
+    }
+}
+
+impl Add for Vector3d {
+    type Output = Vector3d;
+
+    fn add(self, other: Vector3d) -> Vector3d {
         Vector3d::new(
             self.x + other.x, self.y + other.y, self.z + other.z
         )
     }
+}
 
-    pub fn sub(&self, other: &Vector3d) -> Vector3d {
+impl Sub for Vector3d {
+    type Output = Vector3d;
+
+    fn sub(self, other: Vector3d) -> Vector3d {
         Vector3d::new(
             self.x - other.x, self.y - other.y, self.z - other.z
         )
     }
+}    
 
-    pub fn scale(&self, s: f64) -> Vector3d {
+impl Mul for Vector3d {
+    type Output = f64;
+
+    fn mul(self, other: Vector3d) -> f64 {
+        self.x * other.x + self.y * other.y + self.z * other.z
+    }
+}
+
+impl Mul<f64> for Vector3d {
+    type Output = Vector3d;
+
+    fn mul(self, s: f64) -> Vector3d {
         Vector3d::new(
             self.x * s, self.y * s, self.z * s
         )
-    }
-
-    pub fn dot(&self, other: &Vector3d) -> f64 {
-        self.x * other.x + self.y * other.y + self.z * other.z
-    }
-
-    pub fn unitise(&self) -> Vector3d {
-        self.scale(1.0 / self.dot(self).sqrt())
     }
 }
 
@@ -87,9 +105,9 @@ impl Sphere {
     }
 
     pub fn ray_sphere(&self, ray: &Ray) -> f64 {
-        let v: Vector3d = self.center.sub(&ray.orig);
-        let b: f64 = v.dot(&ray.dir);
-        let disc: f64 = b * b - v.dot(&v) + self.radius * self.radius;
+        let v: Vector3d = self.center - ray.orig;
+        let b: f64 = v * ray.dir;
+        let disc: f64 = b * b - v * v + self.radius * self.radius;
         return if disc < 0.0 {
             f64::INFINITY
         } else {
@@ -115,7 +133,7 @@ impl Scene for Sphere {
         return if l >= i.lambda {
             i.clone()
         } else {
-            let n: Vector3d = ray.orig.add(&ray.dir.scale(l).sub(&self.center));
+            let n: Vector3d = ray.orig + ray.dir * l - self.center;
             Hit::new(l, n.unitise())
         };
     }
@@ -152,16 +170,14 @@ fn ray_trace(light: Vector3d, ray: Ray, scene: &Scene) -> f64 {
     if i.lambda == INFINITY {
         return 0.0;
     }
-    let g: f64 = i.normal.dot(&light);
+    let g: f64 = i.normal * light;
     if g >= 0.0 {
         return 0.0;
     }
-    let o: Vector3d = ray.orig.add(
-        &ray.dir.scale(i.lambda).add(
-            &i.normal.scale(EPSILON.sqrt())
-        )
-    );
-    let sray: Ray = Ray::new(o, light.scale(-1.0));
+    let o: Vector3d = ray.orig + 
+        ray.dir * i.lambda + 
+        i.normal * EPSILON.sqrt();
+    let sray: Ray = Ray::new(o, light * -1.0);
     let si: Hit = scene.intersect(&Hit::new(INFINITY, ZERO), &sray);
     return if si.lambda == INFINITY {
         -g
@@ -182,7 +198,7 @@ fn create(level: i32, c: Vector3d, r: f64) -> Box<Scene> {
     while dz <= 1 {
         let mut dx: i32 = -1;
         while dx <= 1 {
-            let c2: Vector3d = c.add(&Vector3d::new(dx as f64, 1.0, dz as f64).scale(rn));
+            let c2: Vector3d = c + Vector3d::new(dx as f64, 1.0, dz as f64) * (rn);
             objects.push(create(level - 1, c2, r / 2.0));
             dx += 2;
         }
