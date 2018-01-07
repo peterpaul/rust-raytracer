@@ -24,7 +24,7 @@ impl Vector3d {
         self.dot(self).sqrt()
     }
 
-    pub fn unitise(self) -> Vector3d {
+    pub fn normalize(self) -> Vector3d {
         self * (1.0 / self.length())
     }
 
@@ -176,7 +176,7 @@ impl Scene for Sphere {
             i.clone()
         } else {
             let n: Vector3d = ray.orig + ray.dir * l - self.center;
-            Hit::new(l, n.unitise())
+            Hit::new(l, n.normalize())
         };
     }
 
@@ -295,7 +295,7 @@ fn create(level: i32, c: Vector3d, r: f64) -> Box<Scene> {
 
 fn run(n: i32, level: i32, ss: i32) {
     let sss: f64 = ss as f64 * ss as f64;
-    let light = Vector3d::new(-1.0, -3.0, 2.0).unitise();
+    let light = Vector3d::new(-1.0, -3.0, 2.0).normalize();
     let orig = Vector3d::new(0.0, 0.0, -4.0);
     let scene: Box<Scene> = create(level, Vector3d::new(0.0, -1.0, 0.0), 1.0);
     let mut file = BufWriter::new(File::create("image.pgm")
@@ -315,7 +315,7 @@ fn run(n: i32, level: i32, ss: i32) {
                     );
                     let ray: Ray = Ray::new(
                         orig,
-                        d.unitise()
+                        d.normalize()
                     );
                     g += ray_trace(
                         light,
