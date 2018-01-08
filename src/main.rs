@@ -6,102 +6,8 @@ use std::ops::Deref;
 use std::io::BufWriter;
 use std::f64::EPSILON;
 
-use std::ops::*;
-
-#[derive(Debug, Copy, Clone, PartialEq)]
-pub struct Vector3d {
-    pub x: f64,
-    pub y: f64,
-    pub z: f64,
-}
-
-impl Vector3d {
-    pub fn new(x: f64, y: f64, z: f64) -> Self {
-        Vector3d { x, y, z }
-    }
-
-    pub fn length(self) -> f64 {
-        self.dot(self).sqrt()
-    }
-
-    pub fn normalize(self) -> Vector3d {
-        self * (1.0 / self.length())
-    }
-
-    pub fn dot(self, other: Vector3d) -> f64 {
-        self.x * other.x + self.y * other.y + self.z * other.z
-    }
-
-    pub fn cross(self, other: Vector3d) -> Vector3d {
-        Vector3d::new(self.y * other.z - self.z * other.y,
-		      self.z * other.x - self.x * other.z,
-		      self.x * other.y - self.y * other.x)
-    }
-
-    pub fn abs(self) -> Vector3d {
-        Vector3d::new(self.x.abs(), self.y.abs(), self.z.abs())
-    }
-
-    pub fn min(self, other: Vector3d) -> Vector3d {
-        Vector3d::new(self.x.min(other.x), self.y.min(other.y), self.z.min(other.z))
-    }
-
-    pub fn max(self, other: Vector3d) -> Vector3d {
-        Vector3d::new(self.x.max(other.x), self.y.max(other.y), self.z.max(other.z))
-    }
-}
-
-impl Add for Vector3d {
-    type Output = Vector3d;
-
-    fn add(self, other: Vector3d) -> Vector3d {
-        Vector3d::new(
-            self.x + other.x, self.y + other.y, self.z + other.z
-        )
-    }
-}
-
-impl Sub for Vector3d {
-    type Output = Vector3d;
-
-    fn sub(self, other: Vector3d) -> Vector3d {
-        Vector3d::new(
-            self.x - other.x, self.y - other.y, self.z - other.z
-        )
-    }
-}    
-
-impl Mul for Vector3d {
-    type Output = Vector3d;
-
-    fn mul(self, other: Vector3d) -> Vector3d {
-        Vector3d::new(self.x * other.x, self.y * other.y, self.z * other.z)
-    }
-}
-
-impl Mul<f64> for Vector3d {
-    type Output = Vector3d;
-
-    fn mul(self, s: f64) -> Vector3d {
-        Vector3d::new(self.x * s, self.y * s, self.z * s)
-    }
-}
-
-impl Mul<Vector3d> for f64 {
-    type Output = Vector3d;
-
-    fn mul(self, v: Vector3d) -> Vector3d {
-        Vector3d::new(self * v.x, self * v.y, self * v.z)
-    }
-}
-
-impl Neg for Vector3d {
-    type Output = Vector3d;
-
-    fn neg(self) -> Vector3d {
-        Vector3d::new(-self.x, -self.y, -self.z)
-    }
-}
+mod vector3d;
+use vector3d::Vector3d;
 
 const ZERO: Vector3d = Vector3d { x: 0.0, y: 0.0, z: 0.0 };
 
@@ -121,11 +27,12 @@ impl Ray {
 struct Hit {
     lambda: f64,
     normal: Vector3d,
+    color: Vector3d,
 }
 
 impl Hit {
-    pub fn new(lambda: f64, normal: Vector3d) -> Self {
-        Hit { lambda, normal }
+    pub fn new(lambda: f64, normal: Vector3d, color: Vector3d) -> Self {
+        Hit { lambda, normal, color }
     }
 }
 
@@ -138,12 +45,13 @@ trait Scene {
 #[derive(Debug, Copy, Clone, PartialEq)]
 struct Sphere {
     center: Vector3d,
-    radius: f64
+    radius: f64,
+    color: Vector3d,
 }
 
 impl Sphere {
-    pub fn new(center: Vector3d, radius: f64) -> Self {
-        Sphere { center, radius }
+    pub fn new(center: Vector3d, radius: f64, color: Vector3d) -> Self {
+        Sphere { center, radius, color }
     }
 
     pub fn ray_sphere(&self, ray: &Ray) -> f64 {
@@ -176,7 +84,7 @@ impl Scene for Sphere {
             i.clone()
         } else {
             let n: Vector3d = ray.orig + ray.dir * l - self.center;
-            Hit::new(l, n.normalize())
+            Hit::new(l, n.normalize(), self.color)
         };
     }
 
@@ -203,9 +111,9 @@ struct Group {
 }
 
 impl Group {
-    pub fn new(objects: Vec<Box<Scene>>) -> Self {
+    pub fn new(objects: Vec<Box<Scene>>, color: Vector3d) -> Self {
         let (min, max) = Group::bounding_box(&objects);
-        let bound = Sphere::new((min + max) * 0.5, (max - min).length() * 0.5);
+        let bound = Sphere::new((min + max) * 0.5, (max - min).length() * 0.5, color);
         Group { bound, objects }
     }
 
@@ -251,14 +159,14 @@ impl Scene for Group {
     }
 }
 
-fn ray_trace(light: Vector3d, ray: Ray, scene: &Scene) -> f64 {
-    let i: Hit = scene.intersect(&Hit::new(INFINITY, ZERO), &ray);
+fn ray_trace(light: Vector3d, ray: Ray, scene: &Scene) -> Vector3d {
+    let i: Hit = scene.intersect(&Hit::new(INFINITY, ZERO, ZERO), &ray);
     if i.lambda == INFINITY {
-        return 0.0;
+        return ZERO;
     }
     let g: f64 = i.normal.dot(light);
     if g >= 0.0 {
-        return 0.0;
+        return ZERO;
     }
 
     let o: Vector3d = ray.orig + 
@@ -266,14 +174,14 @@ fn ray_trace(light: Vector3d, ray: Ray, scene: &Scene) -> f64 {
         i.normal * EPSILON.sqrt();
     let sray: Ray = Ray::new(o, light * -1.0);
     return if scene.shadow(&sray) {
-        0.0
+        ZERO
     } else {
-        -g
+        -g * i.color
     };
 }
 
 fn create(level: i32, c: Vector3d, r: f64) -> Box<Scene> {
-    let sphere: Sphere = Sphere::new(c, r);
+    let sphere: Sphere = Sphere::new(c, r, c.abs().normalize());
     if level == 1 {
         return Box::new(sphere);
     }
@@ -290,7 +198,7 @@ fn create(level: i32, c: Vector3d, r: f64) -> Box<Scene> {
         }
         dz += 2;
     }
-    return Box::new(Group::new(objects));
+    return Box::new(Group::new(objects, ZERO));
 }
 
 fn run(n: i32, level: i32, ss: i32) {
@@ -298,14 +206,14 @@ fn run(n: i32, level: i32, ss: i32) {
     let light = Vector3d::new(-1.0, -3.0, 2.0).normalize();
     let orig = Vector3d::new(0.0, 0.0, -4.0);
     let scene: Box<Scene> = create(level, Vector3d::new(0.0, -1.0, 0.0), 1.0);
-    let mut file = BufWriter::new(File::create("image.pgm")
-                                  .expect("Failed to create image.pgm"));
+    let mut file = BufWriter::new(File::create("image.ppm")
+                                  .expect("Failed to create image.ppm"));
 
-    file.write_all(format!("P5\n{} {}\n255\n", n, n).as_bytes())
-        .expect("Failed writing header to image.pgm");
+    file.write_all(format!("P6\n{} {}\n255\n", n, n).as_bytes())
+        .expect("Failed writing header to image.ppm");
     for y in (0..n).rev() {
         for x in 0..n {
-            let mut g: f64 = 0.0;
+            let mut g: Vector3d = ZERO;
             for dx in 0..ss {
                 for dy in 0..ss {
                     let d: Vector3d = Vector3d::new(
@@ -317,15 +225,15 @@ fn run(n: i32, level: i32, ss: i32) {
                         orig,
                         d.normalize()
                     );
-                    g += ray_trace(
+                    g = g + ray_trace(
                         light,
                         ray,
                         scene.deref());
                 }
             }
-            let b: u8 = (0.5 + 255.0 * g / sss) as u8;
-            file.write_all(&[b])
-                .expect("Failed writing byte to image.pgm");
+            let c: Vector3d = Vector3d::new(0.5, 0.5, 0.5) + 255.0 * g * (1.0 / sss);
+            file.write_all(&[c.x as u8, c.y as u8, c.z as u8])
+                .expect("Failed writing byte to image.ppm");
         }
     }
 }
