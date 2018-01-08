@@ -225,7 +225,7 @@ fn run(n: i32, level: i32, ss: i32) {
                         orig,
                         d.normalize()
                     );
-                    g = g + ray_trace(
+                    g += ray_trace(
                         light,
                         ray,
                         scene.deref());

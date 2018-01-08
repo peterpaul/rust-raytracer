@@ -53,6 +53,14 @@ impl Add for Vector3d {
     }
 }
 
+impl AddAssign for Vector3d {
+    fn add_assign(&mut self, other: Vector3d) {
+        self.x += other.x;
+        self.y += other.y;
+        self.z += other.z;
+    }
+}
+
 impl Sub for Vector3d {
     type Output = Vector3d;
 
