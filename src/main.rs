@@ -159,7 +159,9 @@ impl Scene for Group {
     }
 }
 
-fn ray_trace(light: Vector3d, ray: Ray, scene: &Scene) -> Vector3d {
+const MAX_NESTING: i32 = 1;
+
+fn ray_trace(light: Vector3d, ray: Ray, scene: &Scene, nesting: i32) -> Vector3d {
     let i: Hit = scene.intersect(&Hit::new(INFINITY, ZERO, ZERO), &ray);
     if i.lambda == INFINITY {
         return ZERO;
@@ -172,12 +174,20 @@ fn ray_trace(light: Vector3d, ray: Ray, scene: &Scene) -> Vector3d {
     let o: Vector3d = ray.orig + 
         ray.dir * i.lambda + 
         i.normal * EPSILON.sqrt();
-    let sray: Ray = Ray::new(o, light * -1.0);
-    return if scene.shadow(&sray) {
+    let sray = Ray::new(o, light * -1.0);
+    let color = if scene.shadow(&sray) {
         ZERO
     } else {
         -g * i.color
     };
+    let d = ray.dir - (2.0 * i.normal.dot(ray.dir)) * i.normal;
+    let reflection = Ray::new(o, d);
+    let reflection_color = if nesting < MAX_NESTING {
+        0.5 * ray_trace(light, reflection, scene, nesting + 1)
+    } else {
+        ZERO
+    };
+    color + reflection_color
 }
 
 fn create(level: i32, c: Vector3d, r: f64) -> Box<Scene> {
@@ -228,7 +238,8 @@ fn run(n: i32, level: i32, ss: i32) {
                     g += ray_trace(
                         light,
                         ray,
-                        scene.deref());
+                        scene.deref(),
+                        0);
                 }
             }
             let c: Vector3d = Vector3d::new(0.5, 0.5, 0.5) + g * color_scale;
