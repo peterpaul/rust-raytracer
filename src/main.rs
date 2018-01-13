@@ -162,26 +162,26 @@ impl Scene for Group {
 const MAX_NESTING: i32 = 1;
 
 fn ray_trace(light: Vector3d, ray: Ray, scene: &Scene, nesting: i32) -> Vector3d {
-    let i: Hit = scene.intersect(&Hit::new(INFINITY, ZERO, ZERO), &ray);
-    if i.lambda == INFINITY {
+    let hit: Hit = scene.intersect(&Hit::new(INFINITY, ZERO, ZERO), &ray);
+    if hit.lambda == INFINITY {
         return ZERO;
     }
-    let g: f64 = i.normal.dot(light);
+    let g: f64 = hit.normal.dot(light);
     if g >= 0.0 {
         return ZERO;
     }
 
-    let o: Vector3d = ray.orig + 
-        ray.dir * i.lambda + 
-        i.normal * EPSILON.sqrt();
-    let sray = Ray::new(o, light * -1.0);
+    let origin: Vector3d = ray.orig + 
+        ray.dir * hit.lambda + 
+        hit.normal * EPSILON.sqrt();
+    let sray = Ray::new(origin, -light);
     let color = if scene.shadow(&sray) {
         ZERO
     } else {
-        -g * i.color
+        -g * hit.color
     };
-    let d = ray.dir - (2.0 * i.normal.dot(ray.dir)) * i.normal;
-    let reflection = Ray::new(o, d);
+    let dir = ray.dir - (2.0 * hit.normal.dot(ray.dir)) * hit.normal;
+    let reflection = Ray::new(origin, dir);
     let reflection_color = if nesting < MAX_NESTING {
         0.5 * ray_trace(light, reflection, scene, nesting + 1)
     } else {
