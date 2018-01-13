@@ -202,7 +202,7 @@ fn create(level: i32, c: Vector3d, r: f64) -> Box<Scene> {
 }
 
 fn run(n: i32, level: i32, ss: i32) {
-    let sss: f64 = ss as f64 * ss as f64;
+    let color_scale: f64 = 255.0 / (ss as f64 * ss as f64);
     let light = Vector3d::new(-1.0, -3.0, 2.0).normalize();
     let orig = Vector3d::new(0.0, 0.0, -4.0);
     let scene: Box<Scene> = create(level, Vector3d::new(0.0, -1.0, 0.0), 1.0);
@@ -231,7 +231,7 @@ fn run(n: i32, level: i32, ss: i32) {
                         scene.deref());
                 }
             }
-            let c: Vector3d = Vector3d::new(0.5, 0.5, 0.5) + 255.0 * g * (1.0 / sss);
+            let c: Vector3d = Vector3d::new(0.5, 0.5, 0.5) + g * color_scale;
             file.write_all(&[c.x as u8, c.y as u8, c.z as u8])
                 .expect("Failed writing byte to image.ppm");
         }

@@ -17,7 +17,7 @@ impl Vector3d {
     }
 
     pub fn normalize(self) -> Vector3d {
-        self * (1.0 / self.length())
+        self / self.length()
     }
 
     pub fn dot(self, other: Vector3d) -> f64 {
@@ -71,11 +71,27 @@ impl Sub for Vector3d {
     }
 }    
 
+impl SubAssign for Vector3d {
+    fn sub_assign(&mut self, other: Vector3d) {
+        self.x -= other.x;
+        self.y -= other.y;
+        self.z -= other.z;
+    }
+}
+
 impl Mul for Vector3d {
     type Output = Vector3d;
 
     fn mul(self, other: Vector3d) -> Vector3d {
         Vector3d::new(self.x * other.x, self.y * other.y, self.z * other.z)
+    }
+}
+
+impl MulAssign for Vector3d {
+    fn mul_assign(&mut self, other: Vector3d) {
+        self.x *= other.x;
+        self.y *= other.y;
+        self.z *= other.z;
     }
 }
 
@@ -92,6 +108,38 @@ impl Mul<Vector3d> for f64 {
 
     fn mul(self, v: Vector3d) -> Vector3d {
         Vector3d::new(self * v.x, self * v.y, self * v.z)
+    }
+}
+
+impl Div for Vector3d {
+    type Output = Vector3d;
+
+    fn div(self, other: Vector3d) -> Vector3d {
+        Vector3d::new(self.x / other.x, self.y / other.y, self.z / other.z)
+    }
+}
+
+impl DivAssign for Vector3d {
+    fn div_assign(&mut self, other: Vector3d) {
+        self.x /= other.x;
+        self.y /= other.y;
+        self.z /= other.z;
+    }
+}
+
+impl Div<f64> for Vector3d {
+    type Output = Vector3d;
+
+    fn div(self, s: f64) -> Vector3d {
+        self * (1.0 / s)
+    }
+}
+
+impl Div<Vector3d> for f64 {
+    type Output = Vector3d;
+
+    fn div(self, v: Vector3d) -> Vector3d {
+        v * (1.0 / self)
     }
 }
 
