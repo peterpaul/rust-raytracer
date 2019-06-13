@@ -10,6 +10,7 @@ mod vector3d;
 use vector3d::Vector3d;
 
 const ZERO: Vector3d = Vector3d { x: 0.0, y: 0.0, z: 0.0 };
+const ONE: Vector3d = Vector3d { x: 1.0, y: 1.0, z: 1.0 };
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 struct Ray {
@@ -58,7 +59,7 @@ impl Sphere {
         let v: Vector3d = self.center - ray.orig;
         let b: f64 = v.dot(ray.dir);
         let disc: f64 = b * b - v.dot(v) + self.radius * self.radius;
-        return if disc < 0.0 {
+        if disc < 0.0 {
             f64::INFINITY
         } else {
             let d: f64 = disc.sqrt();
@@ -73,26 +74,26 @@ impl Sphere {
                     t2
                 }
             }
-        };
+        }
     }
 }
 
 impl Scene for Sphere {
     fn intersect(&self, i: &Hit, ray: &Ray) -> Hit {
         let l: f64 = self.ray_sphere(ray);
-        return if l >= i.lambda {
-            i.clone()
+        if l >= i.lambda {
+            *i
         } else {
             let n: Vector3d = ray.orig + ray.dir * l - self.center;
             Hit::new(l, n.normalize(), self.color)
-        };
+        }
     }
 
     fn shadow(&self, ray: &Ray) -> bool {
         let v: Vector3d = self.center - ray.orig;
         let b: f64 = v.dot(ray.dir);
         let disc: f64 = b * b - v.dot(v) + self.radius * self.radius;
-        return if disc < 0.0 {
+        if disc < 0.0 {
             false
         } else {
             b + disc.sqrt() >= 0.0
@@ -117,7 +118,7 @@ impl Group {
         Group { bound, objects }
     }
 
-    fn bounding_box(objects: &Vec<Box<Scene>>) -> (Vector3d, Vector3d) {
+    fn bounding_box(objects: &[Box<Scene>]) -> (Vector3d, Vector3d) {
         let mut min = Vector3d::new(f64::MAX, f64::MAX, f64::MAX);
         let mut max = Vector3d::new(f64::MIN, f64::MIN, f64::MIN);
         for scene in objects {
@@ -132,15 +133,15 @@ impl Group {
 impl Scene for Group {
     fn intersect(&self, i: &Hit, ray: &Ray) -> Hit {
         let l: f64 = self.bound.ray_sphere(ray);
-        return if l >= i.lambda {
-            i.clone()
+        if l >= i.lambda {
+            *i
         } else {
-            let mut out: Hit = i.clone();
+            let mut out: Hit = *i;
             for scene in &self.objects {
                 out = scene.intersect(&out, ray);
             }
             out
-        };
+        }
     }
 
     fn shadow(&self, ray: &Ray) -> bool {
@@ -161,12 +162,8 @@ impl Scene for Group {
 
 const MAX_NESTING: i32 = 1;
 
-fn ray_trace(light: Vector3d, ray: Ray, scene: &Scene, nesting: i32) -> Vector3d {
-    let hit: Hit = scene.intersect(&Hit::new(INFINITY, ZERO, ZERO), &ray);
-    if hit.lambda == INFINITY {
-        return ZERO;
-    }
-    let g: f64 = hit.normal.dot(light);
+fn do_ray_trace(lights: &[Vector3d], ray: Ray, scene: &Scene, nesting: i32, hit: Hit, light: &Vector3d) -> Vector3d {
+    let g: f64 = hit.normal.dot(*light);
     if g >= 0.0 {
         return ZERO;
     }
@@ -174,20 +171,32 @@ fn ray_trace(light: Vector3d, ray: Ray, scene: &Scene, nesting: i32) -> Vector3d
     let origin: Vector3d = ray.orig + 
         ray.dir * hit.lambda + 
         hit.normal * EPSILON.sqrt();
-    let sray = Ray::new(origin, -light);
+    let sray = Ray::new(origin, -*light);
     let color = if scene.shadow(&sray) {
         ZERO
     } else {
         -g * hit.color
     };
-    let dir = ray.dir - (2.0 * hit.normal.dot(ray.dir)) * hit.normal;
-    let reflection = Ray::new(origin, dir);
     let reflection_color = if nesting < MAX_NESTING {
-        0.5 * ray_trace(light, reflection, scene, nesting + 1)
+        let dir = ray.dir - (2.0 * hit.normal.dot(ray.dir)) * hit.normal;
+        let reflection = Ray::new(origin, dir);
+        0.5 * ray_trace(lights, reflection, scene, nesting + 1)
     } else {
         ZERO
     };
-    color + reflection_color
+    1.0 - (1.0 - color) * (1.0 - reflection_color)
+}
+
+fn ray_trace(lights: &[Vector3d], ray: Ray, scene: &Scene, nesting: i32) -> Vector3d {
+    let hit: Hit = scene.intersect(&Hit::new(INFINITY, ZERO, ZERO), &ray);
+    if hit.lambda == INFINITY {
+        return ZERO;
+    }
+    1.0 - lights.iter()
+        .map(|light| {
+            do_ray_trace(lights, ray, scene, nesting, hit, light)
+        })
+        .fold(ONE, |a, b| { a * (1.0 - b) })
 }
 
 fn create(level: i32, c: Vector3d, r: f64) -> Box<Scene> {
@@ -202,18 +211,21 @@ fn create(level: i32, c: Vector3d, r: f64) -> Box<Scene> {
     while dz <= 1 {
         let mut dx: i32 = -1;
         while dx <= 1 {
-            let c2: Vector3d = c + Vector3d::new(dx as f64, 1.0, dz as f64) * (rn);
+            let c2: Vector3d = c + Vector3d::new(f64::from(dx), 1.0, f64::from(dz)) * (rn);
             objects.push(create(level - 1, c2, r * 0.5));
             dx += 2;
         }
         dz += 2;
     }
-    return Box::new(Group::new(objects, ZERO));
+    Box::new(Group::new(objects, ZERO))
 }
 
 fn run(n: i32, level: i32, ss: i32) {
-    let color_scale: f64 = 255.0 / (ss as f64 * ss as f64);
-    let light = Vector3d::new(-1.0, -3.0, 2.0).normalize();
+    let color_scale: f64 = 255.0 / (f64::from(ss) * f64::from(ss));
+    let lights = vec![
+        Vector3d::new(-1.0, -3.0, 2.0).normalize(),
+        Vector3d::new(3.0, -1.0, 2.0).normalize(),
+    ];
     let orig = Vector3d::new(0.0, 0.0, -4.0);
     let scene: Box<Scene> = create(level, Vector3d::new(0.0, -1.0, 0.0), 1.0);
     let mut file = BufWriter::new(File::create("image.ppm")
@@ -227,16 +239,16 @@ fn run(n: i32, level: i32, ss: i32) {
             for dx in 0..ss {
                 for dy in 0..ss {
                     let d: Vector3d = Vector3d::new(
-                        x as f64 + dx as f64 / ss as f64 - n as f64 * 0.5,
-                        y as f64 + dy as f64 / ss as f64 - n as f64 * 0.5,
-                        n as f64
+                        f64::from(x) + f64::from(dx) / f64::from(ss) - f64::from(n) * 0.5,
+                        f64::from(y) + f64::from(dy) / f64::from(ss) - f64::from(n) * 0.5,
+                        f64::from(n)
                     );
                     let ray: Ray = Ray::new(
                         orig,
                         d.normalize()
                     );
                     g += ray_trace(
-                        light,
+                        &lights,
                         ray,
                         scene.deref(),
                         0);

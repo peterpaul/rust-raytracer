@@ -71,6 +71,18 @@ impl Sub for Vector3d {
     }
 }    
 
+impl Sub<Vector3d> for f64 {
+    type Output = Vector3d;
+
+    fn sub(self, other: Vector3d) -> Vector3d {
+        Vector3d::new(
+            self - other.x,
+            self - other.y,
+            self - other.z
+        )
+    }
+}
+
 impl SubAssign for Vector3d {
     fn sub_assign(&mut self, other: Vector3d) {
         self.x -= other.x;
