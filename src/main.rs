@@ -108,17 +108,17 @@ impl Scene for Sphere {
 
 struct Group {
     bound: Sphere,
-    objects: Vec<Box<Scene>>
+    objects: Vec<Box<dyn Scene>>
 }
 
 impl Group {
-    pub fn new(objects: Vec<Box<Scene>>, color: Vector3d) -> Self {
+    pub fn new(objects: Vec<Box<dyn Scene>>, color: Vector3d) -> Self {
         let (min, max) = Group::bounding_box(&objects);
         let bound = Sphere::new((min + max) * 0.5, (max - min).length() * 0.5, color);
         Group { bound, objects }
     }
 
-    fn bounding_box(objects: &[Box<Scene>]) -> (Vector3d, Vector3d) {
+    fn bounding_box(objects: &[Box<dyn Scene>]) -> (Vector3d, Vector3d) {
         let mut min = Vector3d::new(f64::MAX, f64::MAX, f64::MAX);
         let mut max = Vector3d::new(f64::MIN, f64::MIN, f64::MIN);
         for scene in objects {
@@ -162,7 +162,7 @@ impl Scene for Group {
 
 const MAX_NESTING: i32 = 1;
 
-fn do_ray_trace(lights: &[Vector3d], ray: Ray, scene: &Scene, nesting: i32, hit: Hit, light: &Vector3d) -> Vector3d {
+fn do_ray_trace(lights: &[Vector3d], ray: Ray, scene: &dyn Scene, nesting: i32, hit: Hit, light: &Vector3d) -> Vector3d {
     let g: f64 = hit.normal.dot(*light);
     if g >= 0.0 {
         return ZERO;
@@ -187,7 +187,7 @@ fn do_ray_trace(lights: &[Vector3d], ray: Ray, scene: &Scene, nesting: i32, hit:
     1.0 - (1.0 - color) * (1.0 - reflection_color)
 }
 
-fn ray_trace(lights: &[Vector3d], ray: Ray, scene: &Scene, nesting: i32) -> Vector3d {
+fn ray_trace(lights: &[Vector3d], ray: Ray, scene: &dyn Scene, nesting: i32) -> Vector3d {
     let hit: Hit = scene.intersect(&Hit::new(INFINITY, ZERO, ZERO), &ray);
     if hit.lambda == INFINITY {
         return ZERO;
@@ -199,12 +199,12 @@ fn ray_trace(lights: &[Vector3d], ray: Ray, scene: &Scene, nesting: i32) -> Vect
         .fold(ONE, |a, b| { a * (1.0 - b) })
 }
 
-fn create(level: i32, c: Vector3d, r: f64) -> Box<Scene> {
+fn create(level: i32, c: Vector3d, r: f64) -> Box<dyn Scene> {
     let sphere: Sphere = Sphere::new(c, r, c.abs().normalize());
     if level == 1 {
         return Box::new(sphere);
     }
-    let mut objects: Vec<Box<Scene>> = Vec::new();
+    let mut objects: Vec<Box<dyn Scene>> = Vec::new();
     objects.push(Box::new(sphere));
     let rn: f64 = 3.0 * r / 12.0f64.sqrt();
     let mut dz: i32 = -1;
@@ -227,7 +227,7 @@ fn run(n: i32, level: i32, ss: i32) {
         Vector3d::new(3.0, -1.0, 2.0).normalize(),
     ];
     let orig = Vector3d::new(0.0, 0.0, -4.0);
-    let scene: Box<Scene> = create(level, Vector3d::new(0.0, -1.0, 0.0), 1.0);
+    let scene: Box<dyn Scene> = create(level, Vector3d::new(0.0, -1.0, 0.0), 1.0);
     let mut file = BufWriter::new(File::create("image.ppm")
                                   .expect("Failed to create image.ppm"));
 
